@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cloze Generator</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #4f46e5;
+      --primary-dark: #3730a3;
+      --bg: #f0f2f5;
+      --card-bg: #ffffff;
+      --text: #333333;
+      --border: #dddddd;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 20px;
+      background: var(--bg);
+      font-family: 'Inter', sans-serif;
+      color: var(--text);
+    }
+    h1 {
+      text-align: center;
+      font-weight: 600;
+      color: var(--primary);
+      margin-bottom: 20px;
+    }
+    .container {
+      max-width: 1200px;
+      margin: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+    .io-container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+    .form-container, .output-container {
+      background: var(--card-bg);
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      display: flex;
+      flex-direction: column;
+      max-height: 80vh;
+      overflow: auto;
+    }
+    .form-group {
+      margin-bottom: 16px;
+    }
+    label {
+      font-weight: 600;
+      margin-bottom: 6px;
+      display: block;
+    }
+    textarea,
+    input[type="number"] {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 1rem;
+      transition: border 0.3s;
+      font-family: inherit;
+    }
+    textarea:focus,
+    input:focus {
+      outline: none;
+      border-color: var(--primary);
+    }
+    button {
+      background: var(--primary);
+      color: #fff;
+      border: none;
+      padding: 12px 24px;
+      font-size: 1rem;
+      font-weight: 600;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.3s;
+      align-self: flex-start;
+    }
+    button:hover {
+      background: var(--primary-dark);
+    }
+    .output-group {
+      margin-bottom: 24px;
+      border-left: 4px solid var(--primary);
+      padding-left: 16px;
+    }
+    .output-group h3 {
+      margin: 0 0 8px;
+      font-weight: 600;
+      color: var(--primary-dark);
+      font-size: 1.1rem;
+    }
+    .output-group pre {
+      background: #f9fafb;
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 12px;
+      font-family: 'Courier New', monospace;
+      white-space: pre-wrap;
+      line-height: 1.5;
+    }
+    @media(max-width: 768px) {
+      .io-container { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Cloze Generator</h1>
+    <div class="io-container">
+      <div class="form-container">
+        <div class="form-group">
+          <label for="blanksPer">Blanks per paragraph:</label>
+          <input type="number" id="blanksPer" value="15" min="1">
+        </div>
+        <div class="form-group" style="flex:1; display:flex; flex-direction:column;">
+          <label for="input">Input paragraphs (separated by blank line):</label>
+          <textarea id="input" rows="10" placeholder="Paste paragraphs here..." style="flex:1;"></textarea>
+        </div>
+        <button id="generate">Generate Clozes</button>
+      </div>
+      <div class="output-container" id="output">
+        <!-- Generated clozes will appear here -->
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const stopwords = new Set([
+      "the","and","a","to","of","in","is","it","that","this","for","with",
+      "as","on","at","by","an","be","or","from","but","not","are","have",
+      "has","do","does","doing","we","you","they","he","she","i","our","us",
+      "their","them","its","so","if","while","through","those"
+    ]);
+    function tokenize(text) {
+      return text.split(/(\s+|[^\w']+)/).filter(tok => tok);
+    }
+    function isWord(tok) {
+      return /^[A-Za-z']+$/.test(tok);
+    }
+    function generateCloze(paragraph, numBlanks) {
+      const tokens = tokenize(paragraph);
+      const content = [];
+      for (let i = 0; i < tokens.length; i++) {
+        const w = tokens[i];
+        if (isWord(w) && w.length > 3 && !stopwords.has(w.toLowerCase())) content.push(i);
+      }
+      const count = Math.min(numBlanks, content.length);
+      const segment = Math.floor(content.length / count) || 1;
+      const picks = [];
+      for (let i = 0; i < count; i++) {
+        const segStart = i * segment;
+        const segEnd = i === count - 1 ? content.length : segStart + segment;
+        const candidates = content.slice(segStart, segEnd);
+        picks.push(candidates[Math.floor(Math.random() * candidates.length)]);
+      }
+      picks.sort((a,b)=>a-b);
+      const answers = [];
+      picks.forEach((idx,k) => {
+        const w = tokens[idx]; answers.push(w);
+        const len = w.length;
+        tokens[idx] = w.slice(0,2) + ' ' + Array(len-2).fill('_').join(' ') + ' (' + (k+1) + ')';
+      });
+      return { cloze: tokens.join(''), answers };
+    }
+    document.getElementById('generate').addEventListener('click', ()=>{
+      const paras = document.getElementById('input').value.trim().split(/\n\s*\n/);
+      const n = parseInt(document.getElementById('blanksPer').value,10);
+      const out = document.getElementById('output');
+      out.innerHTML = '';
+      paras.forEach((p,i) => {
+        if (!p.trim()) return;
+        const {cloze,answers} = generateCloze(p.trim(), n);
+        const group = document.createElement('div');
+        group.className = 'output-group';
+        const heading = document.createElement('h3');
+        heading.textContent = 'Paragraph ' + (i+1);
+        group.appendChild(heading);
+        const preC = document.createElement('pre'); preC.textContent = cloze; group.appendChild(preC);
+        const preA = document.createElement('pre');
+        preA.textContent = 'Answers: ' + answers.map((w,j)=>(j+1)+'. '+w).join(', ');
+        group.appendChild(preA);
+        out.appendChild(group);
+      });
+    });
+  </script>
+</body>
+</html>
